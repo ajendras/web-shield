@@ -1,0 +1,69 @@
+# Web Shield — Embedded default rule set
+#
+# These rules extend the built-in detectors (check_security_headers,
+# evaluate_csp, check_cors_headers). They are loaded automatically
+# when no --rules file is supplied. Rules without a `header` key
+# are always applied (useful for policy reminders). Rules with a
+# `header` are triggered when that header is present in the response.
+#
+# Severity values must be lowercase to match the serialized enum.
+
+- id: x-powered-by-disclosure
+  header: x-powered-by
+  severity: medium
+  title: X-Powered-By header discloses backend technology
+  description: Revealing the exact runtime or framework version assists attackers in selecting targeted exploits and CVEs.
+  recommendation: |
+    Remove the header.
+    Nginx: proxy_hide_header X-Powered-By;
+    Apache: Header unset X-Powered-By
+    Express: app.disable('x-powered-by')
+
+- id: server-version-info
+  header: server
+  severity: low
+  title: Server header leaks version or technology
+  description: The Server response header often includes software name and version, reducing attacker effort.
+  recommendation: |
+    Configure a generic server header.
+    Nginx: server_tokens off;
+    Apache: ServerTokens Prod
+    Remove entirely where possible.
+
+- id: csp-report-only-active
+  header: content-security-policy-report-only
+  severity: info
+  title: Content-Security-Policy-Report-Only header in use
+  description: Report-only mode is excellent for monitoring but does not block violating resources.
+  recommendation: |
+    Deploy a strong enforcing CSP alongside the Report-Only policy:
+    Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-abc123';
+
+- id: recommend-security-txt
+  severity: low
+  title: Consider publishing a security.txt file
+  description: A machine-readable security.txt makes it easy for security researchers to contact you responsibly.
+  recommendation: |
+    Create .well-known/security.txt with at least:
+    Contact: mailto:security@example.com
+    Expires: 2025-12-31T23:59:59Z
+    Canonical: https://example.com/.well-known/security.txt
+
+- id: hsts-preload-recommended
+  header: strict-transport-security
+  severity: low
+  title: HSTS header should include the preload directive
+  description: The preload token allows submission to browser HSTS preload lists for stronger protection against SSL stripping.
+  recommendation: |
+    Update your HSTS header:
+    Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+    Then submit your domain at https://hstspreload.org
+
+- id: cookie-review
+  header: set-cookie
+  severity: medium
+  title: Review cookie security attributes
+  description: Cookies observed; confirm they all carry Secure, HttpOnly, and an appropriate SameSite policy.
+  recommendation: |
+    Example secure Set-Cookie header:
+    Set-Cookie: sessionId=abc123; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=3600
