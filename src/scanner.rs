@@ -115,3 +115,8 @@ fn apply_rules(rules: &[Rule], headers: &HeaderMap, _tech: &[String]) -> Vec<Fin
 
     findings
 }
+
+#[cfg(test)]
+pub fn calculate_score_for_test(findings: &[Finding]) -> u8 {
+    calculate_score(findings)
+}

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::error::{Error, Result};
-use crate::types::{Finding, ScanReport, Severity};
+use crate::types::{ScanReport, Severity};
 
 /// Client for communicating with a locally running Ollama instance.
 ///

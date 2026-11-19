@@ -11,8 +11,6 @@
 //! (Ollama must be running with the requested model for the LLM step;
 //! the example gracefully falls back if Ollama is unavailable.)
 
-use std::path::Path;
-
 use web_shield::{
     config,
     error::Result,
@@ -39,50 +37,33 @@ async fn main() -> Result<()> {
     let report = scanner::scan(
         url,
         if rules.is_empty() { None } else { Some(&rules) },
-    )
-    .await?;
+    ).await?;
     println!(
-        "\x1b[0;32m[+]\x1b[0m Scan completed — Risk score: {}/100 ({} findings)\n",
+        "\x1b[0;32m[+]\x1b[0m Scan complete — score: {}/100 ({} findings)",
         report.score,
         report.findings.len()
     );
 
-    // Retro terminal report (phosphor-green ASCII boxes)
+    // Print retro terminal report
     report::print_terminal(&report);
 
-    // LLM analysis (plain English + concrete fix snippets)
-    println!("\x1b[0;32m[LLM] Querying Ollama for risk explanation...\x1b[0m");
+    // Get LLM explanation (graceful fallback if Ollama not available)
     let llm = LlmClient::new();
     let explanation = match llm.explain(&report, "llama3.2").await {
-        Ok(text) => {
-            println!("\x1b[0;32m[LLM] Explanation received ({} chars)\x1b[0m", text.len());
-            text
-        }
+        Ok(text) => text,
         Err(e) => {
-            let msg = format!(
-                "LLM analysis unavailable: {}.\n\n\
-                 Make sure Ollama is running (`ollama serve`) and the model is pulled:\n\
-                 $ ollama pull llama3.2",
-                e
-            );
-            println!("\x1b[0;33m[LLM] {}\x1b[0m", msg.split('\n').next().unwrap());
-            msg
+            eprintln!("\x1b[0;33m[!] LLM unavailable: {}. Using placeholder.\x1b[0m", e);
+            "# LLM Analysis Skipped\n\nOllama is not running or the model is not pulled.\n\nRun:\n  ollama pull llama3.2\n  ollama run llama3.2".to_string()
         }
     };
 
-    // Markdown report with embedded LLM insights and ready-to-use config snippets
+    // Generate and write markdown report
     let markdown = report::to_markdown(&report, &explanation);
     let output_path = "web-shield-full-report.md";
-    std::fs::write(output_path, markdown).map_err(web_shield::error::Error::from)?;
+    std::fs::write(output_path, markdown)?;
 
-    println!("\n\x1b[0;32m┌──────────────────────────────────────────────────────────────┐");
-    println!("│ Report files written                                         │");
-    println!("├──────────────────────────────────────────────────────────────┤");
-    println!("│ • Retro terminal summary above                               │");
-    println!("│ • Full Markdown report with LLM analysis → {} │", output_path);
-    println!("└──────────────────────────────────────────────────────────────┘\x1b[0m");
-
-    println!("\n\x1b[0;32mExample completed. Run `web-shield scan {}` for the full CLI experience.\x1b[0m", url);
+    println!("\x1b[0;32m[+] Full report with LLM analysis written to {}\x1b[0m", output_path);
+    println!("\x1b[0;32m[+] Example completed successfully!\x1b[0m");
 
     Ok(())
 }

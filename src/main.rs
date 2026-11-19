@@ -4,22 +4,14 @@
 //! then uses Ollama to generate plain-English risk summaries and concrete fixes.
 //! Supports terminal UI, markdown/SARIF reports, custom rules, and CI mode.
 
-use std::path::Path;
 use std::process;
 
 use clap::Parser;
 
 mod cli;
-mod config;
-mod error;
-mod llm;
-mod report;
-mod scanner;
-mod types;
-mod ui;
 
+use web_shield::{config, error::{self, Result}, llm, report, scanner, types, ui};
 use cli::{Args, Commands};
-use error::Result;
 
 #[tokio::main]
 async fn main() {

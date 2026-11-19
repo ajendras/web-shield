@@ -73,6 +73,8 @@ Non-interactive mode, JSON/SARIF output and proper exit codes
 Rust + async keeps scans under 400 ms even with LLM summary
 </td>
 <td>
+📦 <b>Library API</b><br>
+Use as a Rust library with the same scanner, detectors and LLM tools
 </td>
 </tr>
 </table>
@@ -150,6 +152,31 @@ The `--ci` flag disables colors/TUI and forces SARIF-friendly output with correc
 
 </details>
 
+**Library usage**
+
+You can also use Web Shield as a Rust library:
+
+```rust
+use web_shield::{
+    config, 
+    error::Result, 
+    llm::LlmClient, 
+    report, 
+    scanner,
+};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let rules = config::load_rules(None)?;
+    let report = scanner::scan("https://example.com", Some(&rules)).await?;
+    let explanation = LlmClient::new()
+        .explain(&report, "llama3.2")
+        .await?;
+    println!("{}", report::to_markdown(&report, &explanation));
+    Ok(())
+}
+```
+
 ## 🔧 Configuration
 
 | Option | Default | Description |
@@ -160,6 +187,8 @@ The `--ci` flag disables colors/TUI and forces SARIF-friendly output with correc
 | `--ci` | `false` | Non-interactive mode, no colors, SARIF-friendly output and exit codes |
 
 Rules are defined in `rules/default.yaml` (or any YAML passed via `--rules`) and deserialized into `Rule` structs. See `config::load_rules` for embedded defaults and validation.
+
+When using the library, `config::load_rules(None)` uses the embedded defaults, and you can pass `Some(&rules)` to `scanner::scan`. The LLM model and output formats are handled in your code. See the example above and `examples/full-scan.rs`.
 
 ## 🧩 Architecture
 
@@ -195,6 +224,7 @@ Web Shield is a modular Rust CLI. A single passive HTTP request feeds pure detec
 ├── rules/
 │   └── default.yaml          # Embedded baseline rules (severity, header triggers, recommendations)
 ├── src/
+│   ├── lib.rs                # Library root — declares and exposes all modules
 │   ├── main.rs               # CLI entrypoint, command dispatch, exit-code logic
 │   ├── cli.rs                # clap Args, ScanCmd, AnalyzeCmd, InteractiveCmd + URL validator
 │   ├── scanner.rs            # async scan() + score calculation; calls detectors
@@ -205,7 +235,6 @@ Web Shield is a modular Rust CLI. A single passive HTTP request feeds pure detec
 │   ├── config.rs             # load_rules() with embedded DEFAULT_RULES + serde_yaml
 │   ├── ui.rs                 # Ratatui interactive mode (tabs, keyboard handling, phosphor-green style)
 │   ├── error.rs              # Error enum (Io, Http, Llm, InvalidInput, etc.) + Result alias
-│   └── (mod declarations)
 ├── tests/
 │   └── test_scanner.rs       # mockito-based integration tests for detectors
 ├── examples/
