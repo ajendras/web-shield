@@ -23,7 +23,7 @@ use ratatui::{
 };
 
 use crate::error::Result;
-use crate::types::{Finding, ScanReport, Severity};
+use crate::types::{ScanReport, Severity};
 
 const PHOSPHOR_GREEN: Color = Color::Rgb(0x39, 0xff, 0x14);
 const AMBER: Color = Color::Rgb(0xff, 0xb0, 0x00);
@@ -177,7 +177,7 @@ pub fn run_interactive(report: ScanReport) -> Result<()> {
 }
 
 fn draw(f: &mut Frame, app: &mut App) {
-    let area = f.area();
+    let area = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

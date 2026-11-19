@@ -4,7 +4,7 @@
 //! ANSI colors, ASCII box drawing, and clear severity labels. All other
 //! formats are pure data transformations with no side effects.
 
-use crate::types::{Finding, ScanReport, Severity};
+use crate::types::{ScanReport, Severity};
 use serde_json::json;
 
 /// Prints a retro-terminal styled security report using ASCII box art
@@ -23,13 +23,14 @@ pub fn print_terminal(report: &ScanReport) {
         report.score,
         score_indicator(report.score)
     );
+    let tech = if report.tech.is_empty() {
+        "none detected".to_string()
+    } else {
+        report.tech.join(", ")
+    };
     println!(
         "│ Tech     : {:<66} │",
-        if report.tech.is_empty() {
-            "none detected"
-        } else {
-            &report.tech.join(", ")
-        }
+        tech
     );
     println!("│ Findings : {:<66} │", report.findings.len());
     println!("└──────────────────────────────────────────────────────────────────────────────┘");
@@ -79,11 +80,12 @@ pub fn to_markdown(report: &ScanReport, explanation: &str) -> String {
     md.push_str("\n**Risk Score:** ");
     md.push_str(&report.score.to_string());
     md.push_str("/100\n**Technologies:** ");
-    md.push_str(if report.tech.is_empty() {
-        "none detected"
+    let tech = if report.tech.is_empty() {
+        "none detected".to_string()
     } else {
-        &report.tech.join(", ")
-    });
+        report.tech.join(", ")
+    };
+    md.push_str(&tech);
     md.push_str("\n\n");
 
     md.push_str("## Findings\n\n");

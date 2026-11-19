@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use reqwest::{Client, header::HeaderMap, Response};
+use reqwest::{Client, header::HeaderMap};
 
 use crate::detectors::{check_security_headers, check_cors_headers, detect_tech, evaluate_csp};
 use crate::error::{Error, Result};

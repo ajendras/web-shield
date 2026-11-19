@@ -1,11 +1,3 @@
-//! Custom error types for the Web Shield scanner.
-//!
-//! Centralised error handling with rich variants for all failure modes
-//! (network, IO, parsing, LLM communication). Uses `thiserror` for
-//! ergonomic `?` propagation and user-friendly messages.
-
-use std::fmt;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -44,9 +36,3 @@ impl From<serde_json::Error> for Error {
 
 /// Convenient alias used throughout the crate.
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
