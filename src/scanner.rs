@@ -1,8 +1,3 @@
-//! Passive security scanner.
-//!
-//! Makes a single non-intrusive HTTP request and analyzes response headers,
-//! cookies, CSP directives, CORS policy and technology fingerprints.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -166,7 +161,6 @@ fn apply_rules(rules: &[Rule], headers: &HeaderMap, _tech: &[String]) -> Vec<Fin
     findings
 }
 
-#[cfg(test)]
 pub fn calculate_score_for_test(findings: &[Finding]) -> u8 {
     calculate_score(findings)
 }
