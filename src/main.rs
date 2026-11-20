@@ -1,9 +1,3 @@
-//! Web Shield — Passive web security scanner with local LLM analysis.
-//!
-//! Scans headers, cookies, CSP, and tech stack without sending malicious payloads,
-//! then uses Ollama to generate plain-English risk summaries and concrete fixes.
-//! Supports terminal UI, markdown/SARIF reports, custom rules, and CI mode.
-
 use std::process;
 
 use clap::Parser;
@@ -36,42 +30,63 @@ async fn run() -> Result<()> {
 }
 
 async fn scan_command(cmd: cli::ScanCmd) -> Result<()> {
-    // Validate URL (extra safety beyond clap parser)
-    if !cmd.url.starts_with("http://") && !cmd.url.starts_with("https://") {
-        return Err(error::Error::InvalidInput(
-            "URL must start with http:// or https://".to_string(),
-        ));
-    }
-
     let rules = config::load_rules(cmd.rules.as_deref())?;
-    let report = scanner::scan(&cmd.url, if rules.is_empty() { None } else { Some(&rules) }).await?;
+    let rules_ref = if rules.is_empty() { None } else { Some(rules.as_slice()) };
+
+    let reports = if cmd.urls.len() == 1 {
+        vec![scanner::scan(&cmd.urls[0], rules_ref).await?]
+    } else {
+        scanner::scan_multiple(&cmd.urls, rules_ref, cmd.max_concurrent).await?
+    };
 
     let model = cmd.model.unwrap_or_else(|| "llama3.2".to_string());
     let llm = llm::LlmClient::new();
-    let explanation = llm.explain(&report, &model).await?;
+    let mut explanations = Vec::with_capacity(reports.len());
+    for report in &reports {
+        let explanation = llm.explain(report, &model).await?;
+        explanations.push(explanation);
+    }
 
     if let Some(output) = cmd.output {
         let content = if output.ends_with(".json") {
-            serde_json::to_string_pretty(&report)
-                .map_err(|e| error::Error::Json(e.to_string()))?
+            if reports.len() == 1 {
+                serde_json::to_string_pretty(&reports[0])
+                    .map_err(|e| error::Error::Json(e.to_string()))?
+            } else {
+                serde_json::to_string_pretty(&reports)
+                    .map_err(|e| error::Error::Json(e.to_string()))?
+            }
         } else if output.ends_with(".sarif") {
-            report::to_sarif(&report)
+            if reports.len() == 1 {
+                report::to_sarif(&reports[0])
+            } else {
+                report::to_sarif_multiple(&reports)
+            }
+        } else if reports.len() == 1 {
+            report::to_markdown(&reports[0], &explanations[0])
         } else {
-            report::to_markdown(&report, &explanation)
+            report::to_markdown_multiple(&reports, &explanations, &model)
         };
         std::fs::write(&output, content).map_err(error::Error::Io)?;
         println!("\x1b[0;32m[+] Report written to {}\x1b[0m", output);
     } else if cmd.ci {
-        println!("{}", report::to_sarif(&report));
+        let sarif = if reports.len() == 1 {
+            report::to_sarif(&reports[0])
+        } else {
+            report::to_sarif_multiple(&reports)
+        };
+        println!("{}", sarif);
+    } else if reports.len() == 1 {
+        report::print_terminal(&reports[0]);
+        println!("\n\x1b[0;32m=== LLM Analysis ({} ) ===\x1b[0m\n{}", model, explanations[0]);
     } else {
-        report::print_terminal(&report);
-        println!("\n\x1b[0;32m=== LLM Analysis ({} ) ===\x1b[0m\n{}", model, explanation);
+        report::print_terminal_multiple(&reports, &explanations, &model);
     }
 
-    // Proper CI exit codes based on risk score (0 = clean, 1 = warnings, 2 = high risk)
-    if report.score < 50 {
+    let min_score = reports.iter().map(|r| r.score).min().unwrap_or(100);
+    if min_score < 50 {
         process::exit(2);
-    } else if report.score < 75 {
+    } else if min_score < 75 {
         process::exit(1);
     }
 

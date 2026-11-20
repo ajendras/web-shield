@@ -1,8 +1,3 @@
-//! CLI argument definitions using clap.
-//!
-//! Defines the top-level Args and subcommands for scan, analyze, and interactive modes.
-//! Includes input validation for URLs with helpful error messages.
-
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -12,7 +7,7 @@ use std::path::PathBuf;
     version,
     about = "Passive web security scanner with local LLM explanations",
     long_about = "Fetches headers, cookies, CSP and tech fingerprints in one request.\nUses a local Ollama model to produce plain-English risk summaries and copy-paste fixes.\nRetro terminal UI with phosphor-green ASCII aesthetics.",
-    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield interactive --url https://example.com"
+    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com https://test.com --max-concurrent 5\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield interactive --url https://example.com"
 )]
 pub struct Args {
     #[command(subcommand)]
@@ -21,7 +16,7 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Perform a passive security scan on a target URL
+    /// Perform a passive security scan on one or more target URLs (parallel when >1)
     Scan(ScanCmd),
     /// Analyze a previously saved JSON scan report with an LLM
     Analyze(AnalyzeCmd),
@@ -31,9 +26,10 @@ pub enum Commands {
 
 #[derive(Parser, Debug)]
 pub struct ScanCmd {
-    /// URL to scan (must be http:// or https://)
-    #[arg(index = 1, required = true, value_parser = validate_url)]
-    pub url: String,
+    /// URLs to scan (must begin with http:// or https://). Multiple values
+    /// trigger parallel scanning with a shared rate limiter.
+    #[arg(index = 1, required = true, value_parser = validate_url, num_args = 1..)]
+    pub urls: Vec<String>,
 
     /// Ollama model name to use for explanation (must be available locally)
     #[arg(short, long)]
@@ -46,6 +42,11 @@ pub struct ScanCmd {
     /// Path to custom YAML rule file (defaults to embedded rules)
     #[arg(short, long, value_name = "RULES_YAML")]
     pub rules: Option<PathBuf>,
+
+    /// Maximum number of concurrent HTTP requests (shared rate limiter via Semaphore).
+    /// Default is 5.
+    #[arg(long, default_value_t = 5)]
+    pub max_concurrent: usize,
 
     /// CI mode: no colors, no TUI, SARIF-friendly output and proper exit codes
     #[arg(long)]

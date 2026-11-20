@@ -4,9 +4,11 @@
 //! cookies, CSP directives, CORS policy and technology fingerprints.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::{Client, header::HeaderMap};
+use tokio::sync::Semaphore;
 
 use crate::detectors::{check_security_headers, check_cors_headers, detect_tech, evaluate_csp};
 use crate::error::{Error, Result};
@@ -73,6 +75,54 @@ pub async fn scan(url: &str, rules: Option<&[Rule]>) -> Result<ScanReport> {
         score,
         raw_headers,
     })
+}
+
+/// Performs parallel passive scans of multiple URLs with a shared rate limiter
+/// (tokio::sync::Semaphore). The semaphore limits concurrent HTTP requests to
+/// `max_concurrent`. Each scan runs independently; LLM analysis happens
+/// sequentially after all fetches complete. Order of results matches input.
+pub async fn scan_multiple(
+    urls: &[String],
+    rules: Option<&[Rule]>,
+    max_concurrent: usize,
+) -> Result<Vec<ScanReport>> {
+    if urls.is_empty() {
+        return Ok(vec![]);
+    }
+    if max_concurrent < 1 {
+        return Err(Error::InvalidInput(
+            "max_concurrent must be at least 1".to_string(),
+        ));
+    }
+
+    let semaphore = Arc::new(Semaphore::new(max_concurrent));
+    let mut handles = Vec::with_capacity(urls.len());
+
+    for url in urls {
+        let semaphore = Arc::clone(&semaphore);
+        let url = url.clone();
+        let rules_clone = rules.map(|r| r.to_vec());
+
+        let handle = tokio::spawn(async move {
+            let _permit = semaphore
+                .acquire()
+                .await
+                .map_err(|e| Error::InvalidInput(format!("Rate limiter semaphore closed: {}", e)))?;
+
+            scan(&url, rules_clone.as_deref()).await
+        });
+        handles.push(handle);
+    }
+
+    let mut reports = Vec::with_capacity(handles.len());
+    for handle in handles {
+        let report = handle
+            .await
+            .map_err(|e| Error::InvalidInput(format!("Join error in parallel scan: {}", e)))??;
+        reports.push(report);
+    }
+
+    Ok(reports)
 }
 
 fn calculate_score(findings: &[Finding]) -> u8 {

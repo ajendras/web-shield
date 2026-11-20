@@ -77,6 +77,12 @@ Rust + async keeps scans under 400 ms even with LLM summary
 Use as a Rust library with the same scanner, detectors and LLM tools
 </td>
 </tr>
+<tr>
+<td colspan="3">
+🚀 <b>Parallel Multi-URL Scanning</b><br>
+Scan many sites concurrently with a shared tokio::sync::Semaphore rate limiter (configurable concurrency)
+</td>
+</tr>
 </table>
 
 ## 📦 Installation
@@ -116,6 +122,16 @@ This performs a passive scan, calls the local LLM for analysis, prints a retro t
 ```bash
 web-shield scan https://example.com --model llama3.2
 ```
+
+**Scan multiple URLs in parallel (shared rate limiter)**
+
+```bash
+web-shield scan https://example.com https://test.com https://staging.com \
+  --max-concurrent 5 \
+  --model llama3.2
+```
+
+The shared semaphore limits concurrent HTTP requests (default 5). Each site is scanned passively, analyzed by the LLM sequentially, and reported together. Ideal for batch security reviews.
 
 **Save markdown report with LLM explanation**
 
@@ -177,6 +193,17 @@ async fn main() -> Result<()> {
 }
 ```
 
+**Parallel library example**
+
+```rust
+let urls = vec![
+    "https://example.com".to_string(),
+    "https://test.com".to_string(),
+];
+let reports = scanner::scan_multiple(&urls, Some(&rules), 4).await?;
+for (report, explanation) in reports.iter().zip(explanations) { ... }
+```
+
 ## 🔧 Configuration
 
 | Option | Default | Description |
@@ -185,6 +212,7 @@ async fn main() -> Result<()> {
 | `--output` | (none) | Output path (`.md`, `.json`, or `.sarif`); omitted = retro terminal |
 | `--rules` | embedded | Path to custom YAML rule file (`rules/default.yaml` is built-in) |
 | `--ci` | `false` | Non-interactive mode, no colors, SARIF-friendly output and exit codes |
+| `--max-concurrent` | `5` | Maximum concurrent HTTP requests when scanning multiple URLs (shared rate limiter) |
 
 Rules are defined in `rules/default.yaml` (or any YAML passed via `--rules`) and deserialized into `Rule` structs. See `config::load_rules` for embedded defaults and validation.
 
@@ -200,7 +228,8 @@ flowchart TD
     Commands --> Interactive[interactive_command]
 
     Scan --> Config[config::load_rules]
-    Scan --> Scanner[scanner::scan]
+    Scan --> Scanner[scanner::scan / scan_multiple]
+    Scanner --> RateLimiter[tokio::sync::Semaphore (shared)]
     Scanner --> Detectors[detectors.rs<br>check_security_headers, evaluate_csp, detect_tech, check_cors_headers]
     Scanner --> Report[ScanReport]
 
@@ -248,13 +277,13 @@ Web Shield is a modular Rust CLI. A single passive HTTP request feeds pure detec
 cargo test
 ```
 
-Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` that use `mockito` to simulate HTTP responses and assert correct `Finding`s for missing HSTS, bad CSP directives, insecure cookies, server header disclosure, and tech fingerprinting.
+Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` that use `mockito` to simulate HTTP responses and assert correct `Finding`s for missing HSTS, bad CSP directives, insecure cookies, server header disclosure, and tech fingerprinting. New tests cover `scan_multiple` with the shared rate limiter.
 
 ## 📍 Roadmap
 
 <!-- roadmap:start -->
 - [x] **v0.1.0** — first release: Passive Scanner, Tech Fingerprint, Local LLM Analyst, Terminal UI
-- [ ] Add parallel scanning of multiple URLs with shared rate limiter
+- [x] Add parallel scanning of multiple URLs with shared rate limiter
 - [ ] Include cookie attribute analysis (secure, httponly, samesite)
 - [ ] Generate framework-specific fix snippets (Next.js, Django, Rails)
 - [ ] Support reading URLs from sitemap.xml or plain text list
