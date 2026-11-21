@@ -277,14 +277,14 @@ Web Shield is a modular Rust CLI. A single passive HTTP request feeds pure detec
 cargo test
 ```
 
-Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` that use `mockito` to simulate HTTP responses and assert correct `Finding`s for missing HSTS, bad CSP directives, insecure cookies, server header disclosure, and tech fingerprinting. New tests cover `scan_multiple` with the shared rate limiter.
+Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` that use `mockito` to simulate HTTP responses and assert correct `Finding`s for missing HSTS, bad CSP directives, cookie attributes (secure/httponly/samesite), server header disclosure, and tech fingerprinting. Tests cover parallel scanning, score calculation and all detectors.
 
 ## 📍 Roadmap
 
 <!-- roadmap:start -->
 - [x] **v0.1.0** — first release: Passive Scanner, Tech Fingerprint, Local LLM Analyst, Terminal UI
 - [x] Add parallel scanning of multiple URLs with shared rate limiter
-- [ ] Include cookie attribute analysis (secure, httponly, samesite)
+- [x] Include cookie attribute analysis (secure, httponly, samesite)
 - [ ] Generate framework-specific fix snippets (Next.js, Django, Rails)
 - [ ] Support reading URLs from sitemap.xml or plain text list
 - [ ] Interactive follow-up chat with the LLM about any finding

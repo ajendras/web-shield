@@ -11,7 +11,9 @@ use reqwest::Response;
 use crate::types::{Finding, Severity};
 
 /// Checks for common security headers and returns a list of findings for any
-/// that are missing or misconfigured. Also inspects Set-Cookie headers.
+/// that are missing or misconfigured. Performs detailed cookie attribute
+/// analysis for Secure, HttpOnly and SameSite flags (one finding per issue
+/// type even when multiple cookies are present).
 pub fn check_security_headers(headers: &HeaderMap) -> Vec<Finding> {
     let mut findings = Vec::new();
 
@@ -75,37 +77,53 @@ pub fn check_security_headers(headers: &HeaderMap) -> Vec<Finding> {
         });
     }
 
+    let mut has_missing_secure = false;
+    let mut has_missing_httponly = false;
+    let mut has_samesite_none_no_secure = false;
+
     for cookie_hdr in headers.get_all("set-cookie") {
         if let Ok(cookie_str) = cookie_hdr.to_str() {
             let lower = cookie_str.to_lowercase();
             if !lower.contains("secure") {
-                findings.push(Finding {
-                    id: "cookie-missing-secure".to_string(),
-                    severity: Severity::Medium,
-                    title: "Cookie missing Secure flag".to_string(),
-                    description: "Cookies can be transmitted over unencrypted HTTP connections.".to_string(),
-                    recommendation: "Add the Secure attribute to every Set-Cookie header.".to_string(),
-                });
+                has_missing_secure = true;
             }
             if !lower.contains("httponly") {
-                findings.push(Finding {
-                    id: "cookie-missing-httponly".to_string(),
-                    severity: Severity::Medium,
-                    title: "Cookie missing HttpOnly flag".to_string(),
-                    description: "JavaScript can read this cookie (session cookies are especially sensitive).".to_string(),
-                    recommendation: "Add the HttpOnly attribute.".to_string(),
-                });
+                has_missing_httponly = true;
             }
             if lower.contains("samesite=none") && !lower.contains("secure") {
-                findings.push(Finding {
-                    id: "cookie-samesite-none-no-secure".to_string(),
-                    severity: Severity::High,
-                    title: "SameSite=None without Secure flag".to_string(),
-                    description: "SameSite=None cookies must be marked Secure.".to_string(),
-                    recommendation: "Add Secure when SameSite=None is used.".to_string(),
-                });
+                has_samesite_none_no_secure = true;
             }
         }
+    }
+
+    if has_missing_secure {
+        findings.push(Finding {
+            id: "cookie-missing-secure".to_string(),
+            severity: Severity::Medium,
+            title: "Cookies missing Secure flag".to_string(),
+            description: "One or more cookies can be transmitted over unencrypted HTTP connections.".to_string(),
+            recommendation: "Add the Secure attribute to every Set-Cookie that doesn't require HTTP transport.".to_string(),
+        });
+    }
+
+    if has_missing_httponly {
+        findings.push(Finding {
+            id: "cookie-missing-httponly".to_string(),
+            severity: Severity::Medium,
+            title: "Cookies missing HttpOnly flag".to_string(),
+            description: "JavaScript can read one or more cookies (session cookies are especially sensitive).".to_string(),
+            recommendation: "Add the HttpOnly attribute.".to_string(),
+        });
+    }
+
+    if has_samesite_none_no_secure {
+        findings.push(Finding {
+            id: "cookie-samesite-none-no-secure".to_string(),
+            severity: Severity::High,
+            title: "SameSite=None without Secure flag".to_string(),
+            description: "SameSite=None cookies must be marked Secure.".to_string(),
+            recommendation: "Add Secure when SameSite=None is used.".to_string(),
+        });
     }
 
     findings

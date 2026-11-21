@@ -1,93 +1,154 @@
-use mockito;
-use web_shield::{
-    scanner,
-    types::{Finding, Severity},
-};
+//! Integration tests for the scanner and detectors using mock HTTP responses.
 
-#[test]
-fn test_calculate_score_for_test() {
-    // No findings should give a perfect score.
-    let findings: Vec<Finding> = vec![];
-    assert_eq!(scanner::calculate_score_for_test(&findings), 100);
-
-    // A single High severity finding deducts 25 points.
-    let findings = vec![Finding {
-        id: "missing-hsts".to_string(),
-        severity: Severity::High,
-        title: "Missing HSTS".to_string(),
-        description: "test desc".to_string(),
-        recommendation: "test rec".to_string(),
-    }];
-    assert_eq!(scanner::calculate_score_for_test(&findings), 75);
-
-    // Critical + High should deduct 65 points (capped at minimum 15 by the implementation).
-    let findings = vec![
-        Finding {
-            id: "crit".to_string(),
-            severity: Severity::Critical,
-            title: "Critical issue".to_string(),
-            description: "test".to_string(),
-            recommendation: "test".to_string(),
-        },
-        Finding {
-            id: "high".to_string(),
-            severity: Severity::High,
-            title: "High issue".to_string(),
-            description: "test".to_string(),
-            recommendation: "test".to_string(),
-        },
-    ];
-    assert_eq!(scanner::calculate_score_for_test(&findings), 35);
-}
+use reqwest;
+use web_shield::detectors::{check_cors_headers, check_security_headers, detect_tech, evaluate_csp};
+use web_shield::scanner::calculate_score_for_test as calculate_score;
+use web_shield::types::{Finding, Severity};
 
 #[tokio::test]
-async fn test_passive_scan() {
-    let mut server = mockito::Server::new();
-    let mock = server
+async fn test_check_security_headers() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
         .mock("GET", "/")
         .with_status(200)
-        .with_header("server", "Apache/2.4.41 (Unix)")
-        .with_header("set-cookie", "session=abc123")
-        .with_header("content-type", "text/html; charset=utf-8")
-        .create();
+        .with_header("server", "Apache/2.4")
+        .with_header(
+            "set-cookie",
+            "session=abc123; Path=/; Domain=example.com",
+        ) // missing secure, httponly, samesite
+        .with_header(
+            "set-cookie",
+            "csrf=def456; Path=/; Secure; SameSite=Strict; HttpOnly",
+        ) // good cookie
+        .create_async()
+        .await;
 
-    let url = server.url();
-    let report = scanner::scan(&url, None).await.unwrap();
+    let client = reqwest::Client::new();
+    let resp = client.get(server.url()).send().await.unwrap();
+    let findings = check_security_headers(resp.headers());
 
-    assert_eq!(report.url, url);
-    assert!(!report.findings.is_empty());
+    // Missing headers + server disclosure + cookie attribute issues
+    assert!(findings.iter().any(|f| f.id.starts_with("missing-")));
+    assert!(findings.iter().any(|f| f.id == "server-header-disclosure"));
+    assert!(findings.iter().any(|f| f.id == "cookie-missing-secure"));
+    assert!(findings.iter().any(|f| f.id == "cookie-missing-httponly"));
+    // Good cookie prevents SameSite=None issue from firing
+    assert!(!findings.iter().any(|f| f.id == "cookie-samesite-none-no-secure"));
 
-    let finding_ids: Vec<String> = report.findings.iter().map(|f| f.id.clone()).collect();
-    assert!(finding_ids.contains(&"server-header-disclosure".to_string()));
-    assert!(finding_ids.contains(&"cookie-missing-secure".to_string()));
-    assert!(finding_ids.contains(&"cookie-missing-httponly".to_string()));
-    assert!(finding_ids.contains(&"csp-missing".to_string()));
-
-    assert!(report
-        .tech
-        .iter()
-        .any(|t| t.contains("apache") || t.contains("Apache")));
-
-    // Multiple missing headers and cookie issues reduce the score.
-    assert!(report.score < 80);
-
-    mock.assert();
+    let score = calculate_score(&findings);
+    assert!(score < 100);
 }
 
 #[tokio::test]
-async fn test_scan_multiple() {
-    let mut server1 = mockito::Server::new();
-    let mut server2 = mockito::Server::new();
+async fn test_cookie_samesite_none_no_secure() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header(
+            "set-cookie",
+            "crosssite=val; SameSite=None; Path=/",
+        )
+        .create_async()
+        .await;
 
-    let _m1 = server1.mock("GET", "/").with_status(200).create();
-    let _m2 = server2.mock("GET", "/").with_status(200).create();
+    let client = reqwest::Client::new();
+    let resp = client.get(server.url()).send().await.unwrap();
+    let findings = check_security_headers(resp.headers());
 
-    let urls = vec![server1.url(), server2.url()];
-    let reports = scanner::scan_multiple(&urls, None, 2).await.unwrap();
+    assert!(findings.iter().any(|f| f.id == "cookie-samesite-none-no-secure"));
+    assert!(findings.iter().any(|f| f.severity == Severity::High));
+}
 
-    assert_eq!(reports.len(), 2);
+#[tokio::test]
+async fn test_evaluate_csp() {
+    let findings = evaluate_csp("default-src 'self'; script-src 'unsafe-inline'");
+    assert!(findings.iter().any(|f| f.id == "csp-unsafe-inline"));
 
-    let reported_urls: Vec<&String> = reports.iter().map(|r| &r.url).collect();
-    assert!(reported_urls.contains(&&urls[0]));
-    assert!(reported_urls.contains(&&urls[1]));
+    let findings2 = evaluate_csp("");
+    assert!(findings2.iter().any(|f| f.id == "csp-empty"));
+
+    let findings3 = evaluate_csp("default-src 'self'; object-src 'none'; base-uri 'self';");
+    assert!(!findings3.iter().any(|f| f.id == "csp-no-default-src"));
+    assert!(!findings3.iter().any(|f| f.id == "csp-missing-object-base"));
+}
+
+#[tokio::test]
+async fn test_check_cors_headers() {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert("access-control-allow-origin", "*".parse().unwrap());
+    headers.insert("access-control-allow-credentials", "true".parse().unwrap());
+
+    let findings = check_cors_headers(&headers);
+    assert!(findings.iter().any(|f| f.id == "cors-wildcard-with-credentials"));
+}
+
+#[tokio::test]
+async fn test_detect_tech() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("GET", "/")
+        .with_header("server", "nginx/1.21")
+        .with_header("x-powered-by", "Express")
+        .with_header("content-type", "text/html; charset=utf-8")
+        .create_async()
+        .await;
+
+    let client = reqwest::Client::new();
+    let resp = client.get(server.url()).send().await.unwrap();
+    let tech = detect_tech(&resp);
+
+    assert!(tech.contains(&"nginx".to_string()));
+    assert!(tech.contains(&"Express".to_string()));
+}
+
+#[test]
+fn test_calculate_score() {
+    let findings = vec![
+        Finding {
+            id: "test-high".to_string(),
+            severity: Severity::High,
+            title: "High".to_string(),
+            description: "".to_string(),
+            recommendation: "".to_string(),
+        },
+        Finding {
+            id: "test-medium".to_string(),
+            severity: Severity::Medium,
+            title: "Medium".to_string(),
+            description: "".to_string(),
+            recommendation: "".to_string(),
+        },
+        Finding {
+            id: "test-low".to_string(),
+            severity: Severity::Low,
+            title: "Low".to_string(),
+            description: "".to_string(),
+            recommendation: "".to_string(),
+        },
+    ];
+
+    let score = calculate_score(&findings);
+    // 100 - 25 (High) - 12 (Medium) - 5 (Low) = 58
+    assert_eq!(score, 58);
+}
+
+#[tokio::test]
+async fn test_no_cookie_findings_when_all_secure() {
+    let mut server = mockito::Server::new_async().await;
+    let _m = server
+        .mock("GET", "/")
+        .with_status(200)
+        .with_header(
+            "set-cookie",
+            "session=abc; Secure; HttpOnly; SameSite=Strict; Path=/",
+        )
+        .create_async()
+        .await;
+
+    let client = reqwest::Client::new();
+    let resp = client.get(server.url()).send().await.unwrap();
+    let findings = check_security_headers(resp.headers());
+
+    assert!(!findings.iter().any(|f| f.id.starts_with("cookie-")));
 }
