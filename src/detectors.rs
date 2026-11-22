@@ -149,10 +149,29 @@ pub fn detect_tech(res: &Response) -> Vec<String> {
         if s.contains("cloudflare") {
             tech.insert("cloudflare".to_string());
         }
+        if s.contains("next") || s.contains("vercel") {
+            tech.insert("Next.js".to_string());
+        }
+        if s.contains("rails") || s.contains("puma") || s.contains("unicorn") {
+            tech.insert("Ruby on Rails".to_string());
+        }
     }
 
     if let Some(powered) = headers.get("x-powered-by").and_then(|v| v.to_str().ok()) {
+        let p = powered.to_lowercase();
         tech.insert(powered.to_string());
+        if p.contains("php") {
+            tech.insert("php".to_string());
+        }
+        if p.contains("next") || p.contains("vercel") {
+            tech.insert("Next.js".to_string());
+        }
+        if p.contains("django") || p.contains("gunicorn") {
+            tech.insert("Django".to_string());
+        }
+        if p.contains("rails") {
+            tech.insert("Ruby on Rails".to_string());
+        }
     }
 
     if let Some(aspnet) = headers.get("x-aspnet-version").and_then(|v| v.to_str().ok()) {
@@ -172,7 +191,7 @@ pub fn detect_tech(res: &Response) -> Vec<String> {
             tech.insert("python".to_string());
         }
         if ctl.contains("django") {
-            tech.insert("django".to_string());
+            tech.insert("Django".to_string());
         }
     }
 

@@ -23,7 +23,7 @@
 
 Most security scanners dump raw headers and cryptic codes that busy developers ignore. Web Shield runs a fast passive scan of headers, cookies, CSP, CORS and tech fingerprints, then asks a local LLM (via Ollama) to translate the results into plain-English risk summaries and copy-paste configuration fixes. Perfect for indie hackers, full-stack developers and small DevSecOps teams who want actionable security without enterprise tools or sending data offsite.
 
-- **Actionable intelligence** — local LLM produces plain-English explanations plus exact Nginx/Apache/CSP snippets
+- **Actionable intelligence** — local LLM produces plain-English explanations plus exact configuration snippets for Nginx, Apache, CSP, Next.js, Django and Rails
 - **Zero data leaves your machine** — everything runs offline with Ollama; no cloud APIs
 - **Retro terminal UI** — Ratatui-powered interactive explorer with phosphor-green CRT aesthetics, severity filters and Vim-style keys
 - **CI/CD ready** — non-interactive mode, JSON/SARIF output, smart exit codes and custom YAML rules
@@ -46,7 +46,7 @@ Identifies servers, frameworks and surfaces known CVEs via response headers
 </td>
 <td>
 🧠 <b>Local LLM Analyst</b><br>
-Queries Ollama to generate contextual explanations and remediation code
+Queries Ollama to generate contextual explanations and remediation code including framework-specific fixes for Next.js, Django and Rails
 </td>
 </tr>
 <tr>
@@ -285,7 +285,7 @@ Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` 
 - [x] **v0.1.0** — first release: Passive Scanner, Tech Fingerprint, Local LLM Analyst, Terminal UI
 - [x] Add parallel scanning of multiple URLs with shared rate limiter
 - [x] Include cookie attribute analysis (secure, httponly, samesite)
-- [ ] Generate framework-specific fix snippets (Next.js, Django, Rails)
+- [x] Generate framework-specific fix snippets (Next.js, Django, Rails)
 - [ ] Support reading URLs from sitemap.xml or plain text list
 - [ ] Interactive follow-up chat with the LLM about any finding
 - [ ] Cache responses and LLM explanations in ~/.web-shield/cache

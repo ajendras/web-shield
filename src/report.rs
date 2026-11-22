@@ -60,7 +60,7 @@ pub fn print_terminal(report: &ScanReport) {
         println!();
     }
 
-    println!("\x1b[0;32mRun with --output report.md for full LLM analysis.\x1b[0m");
+    println!("\x1b[0;32mRun with --output report.md for LLM analysis with framework-specific fixes.\x1b[0m");
 }
 
 /// Print multiple reports (used by parallel multi-URL scans).
@@ -101,12 +101,12 @@ pub fn to_markdown(report: &ScanReport, explanation: &str) -> String {
         md.push_str(&format!("**ID:** `{}`\n\n", finding.id));
         md.push_str(&finding.description);
         md.push_str("\n\n**Recommended fix:**\n\n");
-        md.push_str("```nginx\n");
+        md.push_str("```\n");
         md.push_str(&finding.recommendation);
         md.push_str("\n```\n\n");
     }
 
-    md.push_str("## LLM Analysis (");
+    md.push_str("## LLM Analysis with Framework-Specific Snippets (");
     md.push_str(if report.score >= 75 { "low risk" } else { "action required" });
     md.push_str(")\n\n");
     md.push_str(explanation);
@@ -145,12 +145,12 @@ pub fn to_markdown_multiple(reports: &[ScanReport], explanations: &[String], mod
             md.push_str(&format!("**ID:** `{}`\n\n", finding.id));
             md.push_str(&finding.description);
             md.push_str("\n\n**Recommended fix:**\n\n");
-            md.push_str("```nginx\n");
+            md.push_str("```\n");
             md.push_str(&finding.recommendation);
             md.push_str("\n```\n\n");
         }
 
-        md.push_str(&format!("### LLM Analysis ({})\n\n", model));
+        md.push_str(&format!("### LLM Analysis with Framework-Specific Snippets ({})\n\n", model));
         md.push_str(explanation);
         md.push_str("\n\n---\n\n");
     }

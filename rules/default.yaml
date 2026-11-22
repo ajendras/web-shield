@@ -14,10 +14,19 @@
   title: X-Powered-By header discloses backend technology
   description: Revealing the exact runtime or framework version assists attackers in selecting targeted exploits and CVEs.
   recommendation: |
-    Remove the header.
+    Remove or suppress the X-Powered-By header.
     Nginx: proxy_hide_header X-Powered-By;
     Apache: Header unset X-Powered-By
-    Express: app.disable('x-powered-by')
+    Next.js:
+      // next.config.js
+      module.exports = {
+        poweredByHeader: false,
+      }
+    Django: Use custom middleware to remove the header (or avoid setting it).
+    Rails:
+      # config/application.rb
+      config.action_dispatch.default_headers.delete('X-Powered-By')
+      # Usually best handled at the web-server (Nginx/Apache) level
 
 - id: server-version-info
   header: server
@@ -25,10 +34,15 @@
   title: Server header leaks version or technology
   description: The Server response header often includes software name and version, reducing attacker effort.
   recommendation: |
-    Configure a generic server header.
+    Configure a generic server header or remove it.
     Nginx: server_tokens off;
     Apache: ServerTokens Prod
-    Remove entirely where possible.
+    Next.js: Handled via Vercel config or a custom server.
+    Django: Use WhiteNoise + web server config (or custom middleware).
+    Rails:
+      # config/environments/production.rb
+      config.force_ssl = true
+      # Combine with Nginx/Apache server_tokens off;
 
 - id: csp-report-only-active
   header: content-security-policy-report-only
@@ -38,6 +52,29 @@
   recommendation: |
     Deploy a strong enforcing CSP alongside the Report-Only policy:
     Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-abc123';
+    Next.js:
+      // next.config.js
+      module.exports = {
+        async headers() {
+          return [{
+            source: '/(.*)',
+            headers: [{
+              key: 'Content-Security-Policy',
+              value: "default-src 'self'; script-src 'self' 'nonce-abc123'; object-src 'none';"
+            }]
+          }]
+        }
+      }
+    Django:
+      # settings.py (with django-csp)
+      CSP_DEFAULT_SRC = ("'self'",)
+      CSP_SCRIPT_SRC = ("'self'", "'nonce-abc123'")
+    Rails:
+      # config/initializers/content_security_policy.rb
+      Rails.application.config.content_security_policy do |policy|
+        policy.default_src :self
+        policy.script_src  :self, "'nonce-abc123'"
+      end
 
 - id: recommend-security-txt
   severity: low
@@ -59,11 +96,39 @@
     Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
     Then submit your domain at https://hstspreload.org
 
+    Framework examples:
+    Next.js: Use the headers() function in next.config.js to set the header.
+    Django:
+      # settings.py
+      SECURE_HSTS_SECONDS = 31536000
+      SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+      SECURE_HSTS_PRELOAD = True
+    Rails:
+      # config/environments/production.rb
+      config.force_ssl = true
+      # This automatically adds a strong HSTS header
+
 - id: cookie-review
   header: set-cookie
   severity: medium
   title: Review cookie security attributes
   description: Cookies observed; confirm they all carry Secure, HttpOnly, and an appropriate SameSite policy.
   recommendation: |
-    Example secure Set-Cookie header:
-    Set-Cookie: sessionId=abc123; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=3600
+    Ensure every cookie uses Secure, HttpOnly and SameSite=Lax (or Strict).
+    Next.js (API route):
+      res.setHeader('Set-Cookie', 'session=abc123; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=3600')
+    Django:
+      response.set_cookie(
+          'sessionid', 'abc123',
+          secure=True, httponly=True, samesite='Lax'
+      )
+    Rails:
+      cookies['session'] = {
+        value: 'abc123',
+        secure: true,
+        httponly: true,
+        same_site: :lax,
+        max_age: 3600
+      }
+    Server config fallback (Nginx):
+      add_header Set-Cookie "Secure; HttpOnly; SameSite=Lax" always;

@@ -60,7 +60,7 @@ impl LlmClient {
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are Web Shield Analyst, a concise DevSecOps expert. Translate technical findings into plain English for developers. Always give exact configuration snippets for Nginx, Apache or CSP. Structure answers with markdown headings. Be practical, never vague."
+                    "content": "You are Web Shield Analyst, a concise DevSecOps expert. Translate technical findings into plain English for developers. Always give exact configuration snippets for the detected stack.\nIf 'Next.js' is listed in technologies, include a next.config.js (or headers() function) example.\nIf 'Django' is listed, include settings.py and/or middleware examples.\nIf 'Ruby on Rails' is listed, include config/application.rb or initializer examples.\nAlways include appropriate Nginx/Apache/CSP snippets as well.\nStructure answers with markdown headings. Be practical, never vague."
                 },
                 {
                     "role": "user",
