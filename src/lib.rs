@@ -19,6 +19,21 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Loading URLs from sitemap or list (new)
+//!
+//! ```no_run
+//! use web_shield::{config, error::Result, scanner};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let rules = config::load_rules(None)?;
+//!     let urls = scanner::resolve_urls("sitemap.xml").await?;
+//!     let reports = scanner::scan_multiple(&urls, Some(&rules), 10).await?;
+//!     println!("Scanned {} sites from sitemap", reports.len());
+//!     Ok(())
+//! }
+//! ```
 
 pub mod config;
 pub mod detectors;

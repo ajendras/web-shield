@@ -80,7 +80,7 @@ Use as a Rust library with the same scanner, detectors and LLM tools
 <tr>
 <td colspan="3">
 🚀 <b>Parallel Multi-URL Scanning</b><br>
-Scan many sites concurrently with a shared tokio::sync::Semaphore rate limiter (configurable concurrency)
+Scan many sites concurrently with a shared tokio::sync::Semaphore rate limiter (configurable concurrency). Targets can be direct URLs, sitemap.xml files (local or remote), or plain text URL lists.
 </td>
 </tr>
 </table>
@@ -132,6 +132,24 @@ web-shield scan https://example.com https://test.com https://staging.com \
 ```
 
 The shared semaphore limits concurrent HTTP requests (default 5). Each site is scanned passively, analyzed by the LLM sequentially, and reported together. Ideal for batch security reviews.
+
+**Scan from sitemap.xml or plain text URL list**
+
+```bash
+# Sitemap (local file or remote URL ending in .xml or containing "sitemap")
+web-shield scan sitemap.xml --model llama3.2
+
+# Plain text list (one URL per line; # comments and empty lines are ignored)
+web-shield scan urls.txt --max-concurrent 20 --model llama3.2
+```
+
+You can mix targets freely:
+
+```bash
+web-shield scan https://example.com sitemap.xml urls.txt --max-concurrent 10
+```
+
+Sitemaps are parsed for all `<loc>` URLs (including CDATA). Only http/https URLs are kept; duplicates across all inputs are removed while preserving discovery order.
 
 **Save markdown report with LLM explanation**
 
@@ -204,10 +222,19 @@ let reports = scanner::scan_multiple(&urls, Some(&rules), 4).await?;
 for (report, explanation) in reports.iter().zip(explanations) { ... }
 ```
 
+**Loading URLs from sitemap or list (new)**
+
+```rust
+let urls = scanner::resolve_urls("https://example.com/sitemap.xml").await?;
+let reports = scanner::scan_multiple(&urls, Some(&rules), 10).await?;
+// LLM explanations and reporting as before
+```
+
 ## 🔧 Configuration
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| target argument(s) | required | One or more URLs, paths to `sitemap.xml` (local/remote), or paths to plain-text URL lists (one URL per line). Mixed usage supported; duplicates removed. |
 | `--model` | `llama3.2` | Ollama model name (must be available locally) |
 | `--output` | (none) | Output path (`.md`, `.json`, or `.sarif`); omitted = retro terminal |
 | `--rules` | embedded | Path to custom YAML rule file (`rules/default.yaml` is built-in) |
@@ -228,6 +255,9 @@ flowchart TD
     Commands --> Interactive[interactive_command]
 
     Scan --> Config[config::load_rules]
+    Scan --> Resolve[scanner::resolve_urls (new)]
+    Resolve --> Sitemap[parse sitemap <loc> tags]
+    Resolve --> List[read plain text list]
     Scan --> Scanner[scanner::scan / scan_multiple]
     Scanner --> RateLimiter[tokio::sync::Semaphore (shared)]
     Scanner --> Detectors[detectors.rs<br>check_security_headers, evaluate_csp, detect_tech, check_cors_headers]
@@ -255,8 +285,8 @@ Web Shield is a modular Rust CLI. A single passive HTTP request feeds pure detec
 ├── src/
 │   ├── lib.rs                # Library root — declares and exposes all modules
 │   ├── main.rs               # CLI entrypoint, command dispatch, exit-code logic
-│   ├── cli.rs                # clap Args, ScanCmd, AnalyzeCmd, InteractiveCmd + URL validator
-│   ├── scanner.rs            # async scan() + score calculation; calls detectors
+│   ├── cli.rs                # clap Args, ScanCmd, AnalyzeCmd, InteractiveCmd + target validator
+│   ├── scanner.rs            # async scan() + score calculation; calls detectors + resolve_urls
 │   ├── detectors.rs          # check_security_headers, detect_tech, evaluate_csp, check_cors_headers
 │   ├── llm.rs                # LlmClient::new() + explain() using Ollama /api/chat
 │   ├── types.rs              # ScanReport, Finding, Severity, Rule structs
@@ -286,7 +316,7 @@ Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` 
 - [x] Add parallel scanning of multiple URLs with shared rate limiter
 - [x] Include cookie attribute analysis (secure, httponly, samesite)
 - [x] Generate framework-specific fix snippets (Next.js, Django, Rails)
-- [ ] Support reading URLs from sitemap.xml or plain text list
+- [x] Support reading URLs from sitemap.xml or plain text list
 - [ ] Interactive follow-up chat with the LLM about any finding
 - [ ] Cache responses and LLM explanations in ~/.web-shield/cache
 - [ ] Add SARIF upload GitHub Action in the released binaries

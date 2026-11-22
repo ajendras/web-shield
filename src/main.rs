@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::process;
 
 use clap::Parser;
@@ -33,10 +34,27 @@ async fn scan_command(cmd: cli::ScanCmd) -> Result<()> {
     let rules = config::load_rules(cmd.rules.as_deref())?;
     let rules_ref = if rules.is_empty() { None } else { Some(rules.as_slice()) };
 
-    let reports = if cmd.urls.len() == 1 {
-        vec![scanner::scan(&cmd.urls[0], rules_ref).await?]
+    let mut all_urls = vec![];
+    let mut seen: HashSet<String> = HashSet::new();
+    for target in &cmd.urls {
+        let resolved = scanner::resolve_urls(target).await?;
+        for u in resolved {
+            if seen.insert(u.clone()) {
+                all_urls.push(u);
+            }
+        }
+    }
+
+    if all_urls.is_empty() {
+        return Err(error::Error::InvalidInput(
+            "No valid URLs to scan".to_string(),
+        ));
+    }
+
+    let reports = if all_urls.len() == 1 {
+        vec![scanner::scan(&all_urls[0], rules_ref).await?]
     } else {
-        scanner::scan_multiple(&cmd.urls, rules_ref, cmd.max_concurrent).await?
+        scanner::scan_multiple(&all_urls, rules_ref, cmd.max_concurrent).await?
     };
 
     let model = cmd.model.unwrap_or_else(|| "llama3.2".to_string());

@@ -7,7 +7,7 @@ use std::path::PathBuf;
     version,
     about = "Passive web security scanner with local LLM explanations",
     long_about = "Fetches headers, cookies, CSP and tech fingerprints in one request.\nUses a local Ollama model to produce plain-English risk summaries and copy-paste fixes.\nRetro terminal UI with phosphor-green ASCII aesthetics.",
-    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com https://test.com --max-concurrent 5\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield interactive --url https://example.com"
+    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com https://test.com --max-concurrent 5\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield scan sitemap.xml --model llama3.2\n  web-shield scan urls.txt --max-concurrent 10\n  web-shield interactive --url https://example.com"
 )]
 pub struct Args {
     #[command(subcommand)]
@@ -26,9 +26,14 @@ pub enum Commands {
 
 #[derive(Parser, Debug)]
 pub struct ScanCmd {
-    /// URLs to scan (must begin with http:// or https://). Multiple values
-    /// trigger parallel scanning with a shared rate limiter.
-    #[arg(index = 1, required = true, value_parser = validate_url, num_args = 1..)]
+    /// One or more targets to scan. Each target can be:
+    /// - A direct URL (http:// or https://)
+    /// - Path to a sitemap.xml (local file or remote URL) — automatically extracts all <loc> URLs
+    /// - Path to a plain text file with one URL per line (comments with # supported)
+    ///
+    /// Multiple targets and mixed types are supported. Parallel scanning is used when total
+    /// resolved URLs > 1.
+    #[arg(index = 1, required = true, value_parser = validate_target, num_args = 1..)]
     pub urls: Vec<String>,
 
     /// Ollama model name to use for explanation (must be available locally)
@@ -79,10 +84,10 @@ pub struct InteractiveCmd {
     pub model: String,
 }
 
-fn validate_url(url: &str) -> Result<String, String> {
-    if url.starts_with("http://") || url.starts_with("https://") {
-        Ok(url.to_string())
+fn validate_target(s: &str) -> Result<String, String> {
+    if s.starts_with("http://") || s.starts_with("https://") || std::path::Path::new(s).exists() {
+        Ok(s.to_string())
     } else {
-        Err("URL must begin with http:// or https:// (e.g. https://example.com)".to_string())
+        Err("Target must be a valid http/https URL or an existing local file path (sitemap.xml or URL list)".to_string())
     }
 }
