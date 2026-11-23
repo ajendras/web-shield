@@ -209,7 +209,10 @@ fn read_url_list(content: &str) -> Vec<String> {
 fn sitemap_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r#"<loc[^>]*>(?:\s*<!\[CDATA\[)?\s*(https?://[^\s<"]+)"#).unwrap()
+        // Handles both plain <loc>https://...</loc> and CDATA-wrapped variants.
+        // The negated class now also excludes ']' so the ]]> terminator is not
+        // accidentally included in the captured URL.
+        Regex::new(r#"<loc[^>]*>(?:\s*<!\[CDATA\[)?\s*(https?://[^]\s<"]+)"#).unwrap()
     })
 }
 
