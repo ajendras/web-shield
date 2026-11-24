@@ -53,3 +53,10 @@ pub struct Rule {
     pub description: String,
     pub recommendation: String,
 }
+
+/// A chat message exchanged with the LLM in the interactive UI.
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}

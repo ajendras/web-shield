@@ -7,7 +7,7 @@ use std::path::PathBuf;
     version,
     about = "Passive web security scanner with local LLM explanations",
     long_about = "Fetches headers, cookies, CSP and tech fingerprints in one request.\nUses a local Ollama model to produce plain-English risk summaries and copy-paste fixes.\nRetro terminal UI with phosphor-green ASCII aesthetics.",
-    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com https://test.com --max-concurrent 5\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield scan sitemap.xml --model llama3.2\n  web-shield scan urls.txt --max-concurrent 10\n  web-shield interactive --url https://example.com"
+    after_help = "Examples:\n  web-shield scan https://example.com\n  web-shield scan https://example.com https://test.com --max-concurrent 5\n  web-shield scan https://example.com --model llama3.2 --output report.md\n  web-shield scan sitemap.xml --model llama3.2\n  web-shield scan urls.txt --max-concurrent 10\n  web-shield interactive --url https://example.com\n\nInteractive keys:\n  Tab/h/l      Switch tabs\n  j/k/up/down  Navigate findings\n  c            Open chat about selected finding (Findings tab)\n  Enter        Send chat message\n  ?            Help\n  q            Quit"
 )]
 pub struct Args {
     #[command(subcommand)]

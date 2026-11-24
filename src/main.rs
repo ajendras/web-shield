@@ -149,6 +149,6 @@ async fn interactive_command(cmd: cli::InteractiveCmd) -> Result<()> {
         }
     };
 
-    ui::run_interactive(report)?;
+    ui::run_interactive(report, cmd.model)?;
     Ok(())
 }

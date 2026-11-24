@@ -83,6 +83,12 @@ Use as a Rust library with the same scanner, detectors and LLM tools
 Scan many sites concurrently with a shared tokio::sync::Semaphore rate limiter (configurable concurrency). Targets can be direct URLs, sitemap.xml files (local or remote), or plain text URL lists.
 </td>
 </tr>
+<tr>
+<td colspan="3">
+💬 <b>Interactive LLM Chat</b><br>
+In the TUI, select any finding and chat with the local LLM for follow-up questions, deeper explanations, or stack-specific advice.
+</td>
+</tr>
 </table>
 
 ## 📦 Installation
@@ -163,7 +169,7 @@ web-shield scan https://example.com --model llama3.2 --output report.md
 web-shield interactive --url https://example.com --model llama3.2
 ```
 
-Use arrow keys, `h/l` or Tab to switch tabs, `j/k` to navigate findings, `?` for help, `q` to quit.
+Use arrow keys, `h/l` or Tab to switch tabs, `j/k` to navigate findings, `c` (in Findings tab) to open chat about the selected finding, type your question and press Enter to get LLM response. `?` for help, `q` to quit.
 
 <details><summary>Analyze a saved JSON report</summary>
 
@@ -317,7 +323,7 @@ Runs unit tests for detectors plus integration tests in `tests/test_scanner.rs` 
 - [x] Include cookie attribute analysis (secure, httponly, samesite)
 - [x] Generate framework-specific fix snippets (Next.js, Django, Rails)
 - [x] Support reading URLs from sitemap.xml or plain text list
-- [ ] Interactive follow-up chat with the LLM about any finding
+- [x] Interactive follow-up chat with the LLM about any finding
 - [ ] Cache responses and LLM explanations in ~/.web-shield/cache
 - [ ] Add SARIF upload GitHub Action in the released binaries
 - [ ] Implement plugin trait so users can add custom detectors
