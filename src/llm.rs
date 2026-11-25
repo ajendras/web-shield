@@ -1,8 +1,3 @@
-//! Local LLM integration via Ollama.
-//!
-//! Uses the Ollama HTTP API (/api/chat) to turn technical scan results into
-//! plain-English risk summaries and concrete, copy-pasteable fixes.
-
 use reqwest;
 use serde::Deserialize;
 use serde_json::json;
@@ -242,7 +237,7 @@ impl LlmClient {
         let user_prompt = format!(
             "URL: {}\nTechnologies: {}\nRisk Score: {}/100\n\nSelected Finding:\n{}\n\nPrevious conversation:\n{}\n\nUser question: {}",
             report.url,
-            if report.tech.is_empty() { "unknown" } else { &report.tech.join(", ") },
+            if report.tech.is_empty() { "unknown".to_string() } else { report.tech.join(", ") },
             report.score,
             finding_text,
             context,
